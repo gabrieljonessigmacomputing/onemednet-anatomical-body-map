@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Anatomical Imaging Body Map — OneMedNet Sigma Plugin</title>
+<title>Anatomical Body Map — Sigma Plugin (procedures / revenue)</title>
 <script src="https://unpkg.com/@sigmacomputing/plugin"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -177,16 +177,16 @@
   var defs=[
     {name:'source',type:'element'},
     {name:'region',type:'column',source:'source',label:'Body region (DICOM BodyPartExamined)',description:'One row per body region (x modality). Values matched case/space/punctuation-insensitively against the built-in DICOM body-part synonym map. Unmatched values are surfaced, never dropped.'},
-    {name:'studies',type:'column',source:'source',allowedTypes:['number','integer'],label:'Imaging studies (drives shading)'},
-    {name:'patients',type:'column',source:'source',allowedTypes:['number','integer'],label:'Distinct patients (optional — also drives suppression)'},
-    {name:'modality',type:'column',source:'source',label:'Modality — CT / MR / US / CR / DX / MG / PT (optional)'},
+    {name:'studies',type:'column',source:'source',allowedTypes:['number','integer'],label:'Primary metric — procedures or revenue (drives shading)'},
+    {name:'patients',type:'column',source:'source',allowedTypes:['number','integer'],label:'Distinct patients / cases (optional)'},
+    {name:'modality',type:'column',source:'source',label:'Modality / service line (optional)'},
     {name:'completeness',type:'column',source:'source',allowedTypes:['number','integer'],label:'EHR linkage / completeness % (optional)'},
     {name:'firstStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Earliest study date (optional)'},
     {name:'lastStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Latest study date (optional)'},
     {name:'sites',type:'column',source:'source',allowedTypes:['number','integer'],label:'Contributing sites (optional)'},
-    {name:'regionVar',type:'variable',label:'Click region → control variable',description:'Bind a workbook List control here. Clicking a region pushes its body-region value(s) so the rest of the dashboard filters. Shift-click adds regions; click background to clear.'},
+    {name:'regionVar',type:'variable',label:'Click region → control variable',description:'Bind a List control (e.g. BodyRegionFilter). Clicking a region writes body-part value(s) for cross-filtering. Shift-click multi-select; click background clears. Pair with onRegionSelect actions.'},
     {name:'onRegionSelect',type:'action-trigger',label:'On region select (optional action)'},
-    {name:'shadeBy',type:'dropdown',values:['Study volume','Distinct patients','Data completeness %'],label:'Shade regions by'},
+    {name:'shadeBy',type:'dropdown',values:['Metric volume','Distinct patients','Data completeness %'],label:'Shade regions by'},
     {name:'views',type:'dropdown',values:['Anterior + posterior','Anterior only'],label:'Views'},
     {name:'scaleMode',type:'dropdown',values:['Quantile (5 bins)','Linear','Log'],label:'Color scale'},
     {name:'suppressUnder',type:'dropdown',values:[0,11,20,50],label:'Suppress regions under N patients'},
@@ -551,7 +551,7 @@
     var s=stateOf(k);
     if(s==='none') return 'no data';
     if(s==='sup') return 'suppressed';
-    if(s==='zero') return '0 studies';
+    if(s==='zero') return '0 procedures';
     var f=shadeField(), v=shadeVal(k);
     return f==='comp' ? Math.round(v)+'%' : K(v);
   }
@@ -581,16 +581,16 @@
     var r=RKEY[k], a=st.agg[k], s=stateOf(k), thr=cfgInt('suppressUnder',11);
     var h='<b>'+esc(r.lab).toUpperCase()+'</b>';
     if(s==='none'){
-      return h+'<div class="syn">no licensed data</div>This region is absent from the result set — no licensed studies are available for it in the current filter context.'+
+      return h+'<div class="syn">no licensed data</div>This region is absent from the result set — no procedures are available for it in the current filter context.'+
         '<div class="ft">Matches any of: '+esc(r.syn.slice(0,6).join(' · '))+'</div>';
     }
     h+='<div class="syn">'+esc(synList(k)||'—')+'</div>';
     if(s==='sup'){
       return h+'Suppressed — fewer than '+thr+' patients (de-identification threshold).<br>Counts are withheld to prevent re-identification.'+
-        '<div class="ft">'+N(a.studies)+' studies present · patient count below threshold</div>';
+        '<div class="ft">'+N(a.studies)+' procedures present · patient count below threshold</div>';
     }
     if(s==='zero'){
-      return h+'<b style="color:#E6EEF6">0 studies</b> in the current result set.<br>The region is licensed and present, but no studies match the active filters.'+
+      return h+'<b style="color:#E6EEF6">0 procedures</b> in the current result set.<br>The region is licensed and present, but nothing matches the active filters.'+
         (a.patients?'<div class="ft">'+N(a.patients)+' patients in cohort</div>':'');
     }
     h+=N(a.studies)+' studies'+(a.patients?' · '+N(a.patients)+' patients':'');
@@ -672,7 +672,7 @@
     rows.sort(function(a,b){ if(order[a.s]!==order[b.s]) return order[a.s]-order[b.s]; return b.v-a.v; });
     var mx=0; rows.forEach(function(r){ if(r.s==='val'&&r.v>mx) mx=r.v; }); mx=mx||1;
     var hd=document.createElement('div'); hd.id='railh';
-    hd.innerHTML='<span>region</span><span>'+(f==='comp'?'linkage':(f==='patients'?'patients':'studies'))+'</span>';
+    hd.innerHTML='<span>region</span><span>'+(f==='comp'?'linkage':(f==='patients'?'patients':'procedures'))+'</span>';
     railEl.appendChild(hd);
     rows.forEach(function(r){
       var d=document.createElement('div'); d.className='rrow'+(st.selected.indexOf(r.k)>=0?' sel':'');
@@ -714,8 +714,8 @@
       h+='<span class="edges">'+st.bins.map(function(e){ return pct?Math.round(e)+'%':K(e); }).join('  |  ')+'</span>';
     }
     h+='<span class="sep"></span>';
-    h+='<span class="ch"><span class="sw sw-none"></span>'+(tiny?'no data':'no licensed data')+'</span>';
-    h+='<span class="ch"><span class="sw sw-zero"></span>'+(tiny?'zero':'zero studies')+'</span>';
+    h+='<span class="ch"><span class="sw sw-none"></span>'+(tiny?'no data':'no data in filter')+'</span>';
+    h+='<span class="ch"><span class="sw sw-zero"></span>'+(tiny?'zero':'zero procedures')+'</span>';
     var thr=cfgInt('suppressUnder',11);
     h+='<span class="ch"><span class="sw sw-sup"></span>'+(thr>0?('suppressed'+(tiny?'':' (&lt;'+thr+' pts)')):'suppression off')+'</span>';
     h+='<span class="ch"><span class="sw sw-wb"></span>'+(tiny?'PET':'whole-body (PET)')+'</span>';
@@ -730,14 +730,14 @@
       if(s==='val')nv++; else if(s==='zero')nz++; else if(s==='sup')ns++; else nn++; });
     var un=0; st.unmapped.forEach(function(u){ un+=u.studies; });
     var tight=(stage.clientWidth||900)<760;
-    var parts=[K(tS+un)+' studies'];
+    var parts=[K(tS+un)+' procedures'];
     if(tP) parts.push(K(tP)+(tight?' pts':' patients (peak region)'));
     parts.push(nv+'/'+REGIONS.length+(tight?' regions':' regions covered'));
     if(nn) parts.push(nn+' no data');
     if(ns) parts.push(ns+' suppr');
     if(st.unmapped.length) parts.push(st.unmapped.length+' unmapped');
     metaEl.innerHTML=parts.map(function(p,i){ return i===0?'<b>'+p+'</b>':p; }).join(' · ')+
-      (st.synthetic?' <span style="color:#B0567F">· preview data</span>':'');
+      (st.synthetic?' <span style="color:#B0567F">· preview (bind source)</span>':'');
   }
 
   /* ---------- master draw ---------- */
