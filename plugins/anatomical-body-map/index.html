@@ -200,7 +200,7 @@
     {name:'showRail',type:'toggle',label:'Show ranked region rail'},
     {name:'showSkeleton',type:'toggle',label:'Show skeletal orientation hint'}
   ];
-  if(client) client.config.configureEditorPanel(defs);
+  /* configureEditorPanel deferred until client is live */
 
   /* ---------- helpers ---------- */
   function el(t,a){ var e=document.createElementNS(NS,t); if(a) for(var k in a) e.setAttribute(k,a[k]); return e; }
@@ -890,12 +890,16 @@
   });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape') clearSel(); });
 
-  if(client){
+  function bindToSigma(client){
+    if(!client||st._wired) return false;
+    st._wired=true;
+    try{ client.config.configureEditorPanel(defs); }catch(e){ console.warn(e); }
     client.config.subscribe(function(cfg){
       st.cfg=cfg||{}; st.dirty=true;
       if(st.unsub){ st.unsub(); st.unsub=null; }
       if(st.unsubCols){ st.unsubCols(); st.unsubCols=null; }
       var sid=sourceId(cfg&&cfg.source);
+      console.log('[bodymap] config', cfg, 'sid', sid);
       if(sid){
         try{ if(client.setLoadingState) client.setLoadingState(true);
              else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(true); }catch(e){}
@@ -904,14 +908,12 @@
             st.cols=cols||{}; st.dirty=true; recompute();
           });
         }catch(e){ console.warn('subscribeToElementColumns',e); }
-        console.log("[bodymap] subscribe sid=",sid," raw source=",cfg.source);
         st.unsub=client.elements.subscribeToElementData(sid,function(dd){
-          console.log("[bodymap] data keys", dd&&Object.keys(dd), dd);
+          console.log('[bodymap] data keys', dd&&Object.keys(dd));
           st.data=dd||{}; st.dirty=true; recompute();
           try{ if(client.setLoadingState) client.setLoadingState(false);
                else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(false); }catch(e){}
         });
-        // Also try the raw cfg.source in case Sigma expects the object handle
         if(sid!==cfg.source){
           try{
             var unsub2=client.elements.subscribeToElementData(cfg.source,function(dd){
@@ -923,6 +925,19 @@
       } else { st.data=null; st.cols={}; }
       recompute();
     });
+    return true;
+  }
+  if(!bindToSigma(client)){
+    var tries=0;
+    var timer=setInterval(function(){
+      tries++;
+      var c=getClient();
+      if(bindToSigma(c)||tries>50){
+        clearInterval(timer);
+        if(!st._wired) console.error('[bodymap] gave up waiting for Sigma client');
+        recompute();
+      }
+    },100);
   }
   st.dirty=true; recompute();
   if(window.ResizeObserver) new ResizeObserver(schedule).observe(wrap);
