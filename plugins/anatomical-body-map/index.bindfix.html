@@ -162,13 +162,13 @@
 <script>
 (function(){
   /* SDK 1.x exposes window.SigmaPlugin (not sigmaComputing.plugin). */
-  var SDK=window.SigmaPlugin||
-    (window.sigmaComputing&&window.sigmaComputing.plugin)||
-    window["@sigmacomputing/plugin"];
-  var client=(SDK&&SDK.client)||null;
-  if(!client){
-    console.error("[bodymap] Sigma plugin SDK client missing", {SigmaPlugin:!!window.SigmaPlugin, sigmaComputing:!!window.sigmaComputing});
+  function getClient(){
+    var SDK=window.SigmaPlugin||
+      (window.sigmaComputing&&window.sigmaComputing.plugin)||
+      window["@sigmacomputing/plugin"];
+    return (SDK&&SDK.client)||null;
   }
+  var client=getClient();
   var NS='http://www.w3.org/2000/svg';
   var tip=document.getElementById('tip'), svg=document.getElementById('svg'), root=document.getElementById('root');
   var wrap=document.getElementById('wrap'), stage=document.getElementById('stage'), figs=document.getElementById('figs');
