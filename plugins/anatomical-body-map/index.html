@@ -737,7 +737,7 @@
     if(ns) parts.push(ns+' suppr');
     if(st.unmapped.length) parts.push(st.unmapped.length+' unmapped');
     metaEl.innerHTML=parts.map(function(p,i){ return i===0?'<b>'+p+'</b>':p; }).join(' · ')+
-      (st.synthetic?' <span style="color:#B0567F">· preview (bind source)</span>':'');
+      (st.synthetic?' <span style="color:#B0567F">· preview (bind source)'+(st._resolved?' ['+((st._resolved.dataKeys||[]).join(',')||'no-data')+' | cfg='+(st._resolved.cfgRegion||'?')+'→'+(st._resolved.region||'?')+']':'')+'</span>':'');
   }
 
   /* ---------- master draw ---------- */
@@ -773,13 +773,78 @@
   }
 
   /* ---------- data -> state ---------- */
+  /* Workbook-as-code often stores source as {kind:"element",elementId} and
+     column bindings as authoring IDs (br0). Sigma may deliver source as a
+     string handle and/or key data by column id OR display name. Resolve both. */
+  function sourceId(src){
+    if(!src) return null;
+    if(typeof src==='string') return src;
+    if(typeof src==='object') return src.elementId||src.id||src.nodeId||src.sourceId||null;
+    return null;
+  }
+  function colMetaName(id){
+    var m=st.cols&&st.cols[id]; return m&&(m.name||m.label)||'';
+  }
+  function findCol(want){
+    if(!want) return null;
+    var d=st.data||{}, cols=st.cols||{};
+    if(d[want]&&d[want].length) return want;
+    // match by column metadata name (case-insensitive)
+    var wantL=String(want).toLowerCase();
+    for(var id in cols){
+      var n=String((cols[id]&&(cols[id].name||cols[id].label))||'').toLowerCase();
+      if(n===wantL&&d[id]&&d[id].length) return id;
+    }
+    // match preferred display names for Ascend / OneMedNet grains
+    var aliases={
+      region:['body region','region','body_part','bodypart','body part examined'],
+      studies:['procedures','studies','study count','metric','revenue','revenue $mm','primary'],
+      patients:['patients','distinct patients','cases','members']
+    };
+    // if want looks like an id that failed, try role aliases via cfg key later
+    for(var id2 in d){
+      if(!d[id2]||!d[id2].length) continue;
+      var nm=String(colMetaName(id2)||id2).toLowerCase();
+      if(nm===wantL) return id2;
+    }
+    return null;
+  }
+  function findColByAliases(aliases){
+    var d=st.data||{}, cols=st.cols||{};
+    for(var id in cols){
+      var n=String((cols[id]&&(cols[id].name||cols[id].label))||'').toLowerCase();
+      for(var i=0;i<aliases.length;i++){
+        if(n===aliases[i]||n.indexOf(aliases[i])>=0){
+          if(d[id]&&d[id].length) return id;
+        }
+      }
+    }
+    // fall back: scan data keys directly
+    for(var id2 in d){
+      if(!d[id2]||!d[id2].length) continue;
+      var nm=String(colMetaName(id2)||id2).toLowerCase();
+      for(var j=0;j<aliases.length;j++){
+        if(nm===aliases[j]||nm.indexOf(aliases[j])>=0) return id2;
+      }
+    }
+    return null;
+  }
   function rowsFromSigma(){
     var c=st.cfg||{}, d=st.data;
-    if(!d||!c.region||!c.studies||!d[c.region]||!d[c.studies]) return null;
-    var reg=d[c.region]||[], sd=d[c.studies]||[],
-        pa=(c.patients&&d[c.patients])||[], mo=(c.modality&&d[c.modality])||[],
-        co=(c.completeness&&d[c.completeness])||[], f1=(c.firstStudy&&d[c.firstStudy])||[],
-        f2=(c.lastStudy&&d[c.lastStudy])||[], si=(c.sites&&d[c.sites])||[];
+    if(!d) return null;
+    var regId=findCol(c.region)||findColByAliases(['body region','region','body part']);
+    var stuId=findCol(c.studies)||findColByAliases(['procedures','studies','study','revenue $mm','revenue']);
+    var patId=findCol(c.patients)||findColByAliases(['patients','cases','members']);
+    st._resolved={region:regId,studies:stuId,patients:patId,dataKeys:Object.keys(d),
+                  cfgRegion:c.region,cfgStudies:c.studies,source:typeof c.source};
+    if(!regId||!stuId||!d[regId]||!d[stuId]) return null;
+    var reg=d[regId]||[], sd=d[stuId]||[],
+        pa=(patId&&d[patId])||[],
+        mo=(c.modality&&d[findCol(c.modality)||c.modality])||[],
+        co=(c.completeness&&d[findCol(c.completeness)||c.completeness])||[],
+        f1=(c.firstStudy&&d[findCol(c.firstStudy)||c.firstStudy])||[],
+        f2=(c.lastStudy&&d[findCol(c.lastStudy)||c.lastStudy])||[],
+        si=(c.sites&&d[findCol(c.sites)||c.sites])||[];
     var out=[];
     for(var i=0;i<reg.length;i++){
       if(reg[i]==null||reg[i]==='') continue;
@@ -817,15 +882,31 @@
     client.config.subscribe(function(cfg){
       st.cfg=cfg||{}; st.dirty=true;
       if(st.unsub){ st.unsub(); st.unsub=null; }
-      if(cfg&&cfg.source){
+      if(st.unsubCols){ st.unsubCols(); st.unsubCols=null; }
+      var sid=sourceId(cfg&&cfg.source);
+      if(sid){
         try{ if(client.setLoadingState) client.setLoadingState(true);
              else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(true); }catch(e){}
-        st.unsub=client.elements.subscribeToElementData(cfg.source,function(dd){
-          st.data=dd; st.dirty=true; recompute();
+        try{
+          st.unsubCols=client.elements.subscribeToElementColumns(sid,function(cols){
+            st.cols=cols||{}; st.dirty=true; recompute();
+          });
+        }catch(e){ console.warn('subscribeToElementColumns',e); }
+        st.unsub=client.elements.subscribeToElementData(sid,function(dd){
+          st.data=dd||{}; st.dirty=true; recompute();
           try{ if(client.setLoadingState) client.setLoadingState(false);
                else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(false); }catch(e){}
         });
-      } else { st.data=null; }
+        // Also try the raw cfg.source in case Sigma expects the object handle
+        if(sid!==cfg.source){
+          try{
+            var unsub2=client.elements.subscribeToElementData(cfg.source,function(dd){
+              if(dd&&Object.keys(dd).length){ st.data=dd; st.dirty=true; recompute(); }
+            });
+            var prev=st.unsub; st.unsub=function(){ try{prev&&prev();}catch(e){} try{unsub2&&unsub2();}catch(e){} };
+          }catch(e){}
+        }
+      } else { st.data=null; st.cols={}; }
       recompute();
     });
   }
