@@ -186,6 +186,7 @@
   /* ---------- editor panel ---------- */
   var defs=[
     {name:'source',type:'element'},
+    {name:'columns',type:'column',source:'source',allowMultiple:true,label:'Columns used by the map (register all bound fields)'},
     {name:'region',type:'column',source:'source',label:'Body region (DICOM BodyPartExamined)',description:'One row per body region (x modality). Values matched case/space/punctuation-insensitively against the built-in DICOM body-part synonym map. Unmatched values are surfaced, never dropped.'},
     {name:'studies',type:'column',source:'source',allowedTypes:['number','integer'],label:'Primary metric — procedures or revenue (drives shading)'},
     {name:'patients',type:'column',source:'source',allowedTypes:['number','integer'],label:'Distinct patients / cases (optional)'},
