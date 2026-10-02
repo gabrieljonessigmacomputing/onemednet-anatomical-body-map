@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Anatomical Body Map — Sigma Plugin (procedures / revenue)</title>
-<script src="./vendor/sigmacomputing-plugin.umd.js"></script>
+<script src="https://gabrieljonessigmacomputing.github.io/onemednet-anatomical-body-map/plugins/anatomical-body-map/vendor/sigmacomputing-plugin.umd.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
@@ -165,7 +165,8 @@
   function getClient(){
     var SDK=window.SigmaPlugin||
       (window.sigmaComputing&&window.sigmaComputing.plugin)||
-      window["@sigmacomputing/plugin"];
+      window["@sigmacomputing/plugin"]||
+      (window.parent&&window.parent.SigmaPlugin);
     return (SDK&&SDK.client)||null;
   }
   var client=getClient();
