@@ -162,7 +162,7 @@
 </div>
 <div id="tip"></div>
 <script>
-(function(){ /* CACHEBUST:20261002d */
+(function(){ /* CACHEBUST:20261002e */
   /* SDK 1.x exposes window.SigmaPlugin (not sigmaComputing.plugin). */
   function getClient(){
     var SDK=window.SigmaPlugin||
@@ -186,18 +186,17 @@
   /* ---------- editor panel ---------- */
   var defs=[
     {name:'source',type:'element'},
-    /* type:text for column ids (waterfall-style) so workbook-as-code plain
-       strings survive and Sigma still ships the full element data feed.
-       type:column object bindings from WAC often yield KEYS=0 in view mode. */
-    {name:'columns',type:'text',label:'Columns CSV (optional — all source cols used if blank)'},
-    {name:'region',type:'text',label:'Body region column id (e.g. br0)',description:'Authoring/live column id for body region. Values matched against DICOM body-part synonyms.'},
-    {name:'studies',type:'text',label:'Primary metric column id (e.g. br1)'},
-    {name:'patients',type:'text',label:'Patients / cases column id (e.g. br3)'},
-    {name:'modality',type:'text',label:'Modality column id (optional)'},
-    {name:'completeness',type:'text',label:'Completeness % column id (optional)'},
-    {name:'firstStudy',type:'text',label:'Earliest study date column id (optional)'},
-    {name:'lastStudy',type:'text',label:'Latest study date column id (optional)'},
-    {name:'sites',type:'text',label:'Sites column id (optional)'},
+    /* type:column is REQUIRED for Sigma to include fields in subscribeToElementData
+       (KEYS>0). Keep unwrapCol/normalizeCfg so {columnId:'br0'} objects work. */
+    {name:'columns',type:'column',source:'source',allowMultiple:true,label:'Columns used by the map (register all bound fields)'},
+    {name:'region',type:'column',source:'source',label:'Body region (DICOM BodyPartExamined)',description:'One row per body region. Values matched against DICOM body-part synonyms.'},
+    {name:'studies',type:'column',source:'source',allowedTypes:['number','integer'],label:'Primary metric — procedures or revenue (drives shading)'},
+    {name:'patients',type:'column',source:'source',allowedTypes:['number','integer'],label:'Distinct patients / cases (optional)'},
+    {name:'modality',type:'column',source:'source',label:'Modality / service line (optional)'},
+    {name:'completeness',type:'column',source:'source',allowedTypes:['number','integer'],label:'EHR linkage / completeness % (optional)'},
+    {name:'firstStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Earliest study date (optional)'},
+    {name:'lastStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Latest study date (optional)'},
+    {name:'sites',type:'column',source:'source',allowedTypes:['number','integer'],label:'Contributing sites (optional)'},
     {name:'regionVar',type:'variable',label:'Click region → control variable',description:'Bind a List control (e.g. BodyRegionFilter). Clicking a region writes body-part value(s) for cross-filtering. Shift-click multi-select; click background clears. Pair with onRegionSelect actions.'},
     {name:'onRegionSelect',type:'action-trigger',label:'On region select (optional action)'},
     {name:'shadeBy',type:'dropdown',values:['Metric volume','Distinct patients','Data completeness %'],label:'Shade regions by'},
@@ -992,20 +991,32 @@
             st.dirty=true; recompute();
           });
         }catch(e){ console.warn('subscribeToElementColumns',e); }
-        st.unsub=client.elements.subscribeToElementData(sid,function(dd){
-          console.log('[bodymap] data keys', dd&&Object.keys(dd));
-          st.data=dd||{}; st.dirty=true; recompute();
+        function ingestData(dd, tag){
+          // SDK may deliver either a bare column→array map or an incremental
+          // {data, offset, isComplete} wrapper.
+          var payload=dd;
+          if(dd && typeof dd==='object' && dd.data && typeof dd.data==='object' && !Array.isArray(dd.data) &&
+             ('offset' in dd || 'isComplete' in dd)){
+            payload=dd.data;
+          }
+          var keys=payload?Object.keys(payload):[];
+          console.log('[bodymap] data', tag, 'keys', keys.length, keys.slice(0,8));
+          if(payload && keys.length){ st.data=payload; st.dirty=true; recompute(); }
           try{ if(client.setLoadingState) client.setLoadingState(false);
                else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(false); }catch(e){}
-        });
-        if(sid!==cfg.source){
-          try{
-            var unsub2=client.elements.subscribeToElementData(cfg.source,function(dd){
-              if(dd&&Object.keys(dd).length){ st.data=dd; st.dirty=true; recompute(); }
-            });
-            var prev=st.unsub; st.unsub=function(){ try{prev&&prev();}catch(e){} try{unsub2&&unsub2();}catch(e){} };
-          }catch(e){}
         }
+        st.unsub=client.elements.subscribeToElementData(sid,function(dd){ ingestData(dd,'sid'); });
+        // Also subscribe under authoring element id and raw source object — parent
+        // sometimes keys the feed by workbook node id vs elementId.
+        var extras=[];
+        try{ if(cfg && cfg.source && cfg.source!==sid) extras.push(cfg.source); }catch(e){}
+        try{ if(cfg && cfg.source && cfg.source.elementId && cfg.source.elementId!==sid) extras.push(cfg.source.elementId); }catch(e){}
+        try{ if(sid!=='tbl-body') extras.push('tbl-body'); }catch(e){}
+        var unsubs=extras.map(function(x){
+          try{ return client.elements.subscribeToElementData(x, function(dd){ ingestData(dd,'extra'); }); }
+          catch(e){ return null; }
+        });
+        var prev=st.unsub; st.unsub=function(){ try{prev&&prev();}catch(e){} unsubs.forEach(function(u){ try{u&&u();}catch(e){} }); };
       } else { st.data=null; st.cols={}; }
       recompute();
     });
