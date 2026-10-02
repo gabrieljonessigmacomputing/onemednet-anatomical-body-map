@@ -162,7 +162,7 @@
 </div>
 <div id="tip"></div>
 <script>
-(function(){ /* CACHEBUST:20261002c */
+(function(){ /* CACHEBUST:20261002d */
   /* SDK 1.x exposes window.SigmaPlugin (not sigmaComputing.plugin). */
   function getClient(){
     var SDK=window.SigmaPlugin||
@@ -186,15 +186,18 @@
   /* ---------- editor panel ---------- */
   var defs=[
     {name:'source',type:'element'},
-    {name:'columns',type:'column',source:'source',allowMultiple:true,label:'Columns used by the map (register all bound fields)'},
-    {name:'region',type:'column',source:'source',label:'Body region (DICOM BodyPartExamined)',description:'One row per body region (x modality). Values matched case/space/punctuation-insensitively against the built-in DICOM body-part synonym map. Unmatched values are surfaced, never dropped.'},
-    {name:'studies',type:'column',source:'source',allowedTypes:['number','integer'],label:'Primary metric — procedures or revenue (drives shading)'},
-    {name:'patients',type:'column',source:'source',allowedTypes:['number','integer'],label:'Distinct patients / cases (optional)'},
-    {name:'modality',type:'column',source:'source',label:'Modality / service line (optional)'},
-    {name:'completeness',type:'column',source:'source',allowedTypes:['number','integer'],label:'EHR linkage / completeness % (optional)'},
-    {name:'firstStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Earliest study date (optional)'},
-    {name:'lastStudy',type:'column',source:'source',allowedTypes:['datetime'],label:'Latest study date (optional)'},
-    {name:'sites',type:'column',source:'source',allowedTypes:['number','integer'],label:'Contributing sites (optional)'},
+    /* type:text for column ids (waterfall-style) so workbook-as-code plain
+       strings survive and Sigma still ships the full element data feed.
+       type:column object bindings from WAC often yield KEYS=0 in view mode. */
+    {name:'columns',type:'text',label:'Columns CSV (optional — all source cols used if blank)'},
+    {name:'region',type:'text',label:'Body region column id (e.g. br0)',description:'Authoring/live column id for body region. Values matched against DICOM body-part synonyms.'},
+    {name:'studies',type:'text',label:'Primary metric column id (e.g. br1)'},
+    {name:'patients',type:'text',label:'Patients / cases column id (e.g. br3)'},
+    {name:'modality',type:'text',label:'Modality column id (optional)'},
+    {name:'completeness',type:'text',label:'Completeness % column id (optional)'},
+    {name:'firstStudy',type:'text',label:'Earliest study date column id (optional)'},
+    {name:'lastStudy',type:'text',label:'Latest study date column id (optional)'},
+    {name:'sites',type:'text',label:'Sites column id (optional)'},
     {name:'regionVar',type:'variable',label:'Click region → control variable',description:'Bind a List control (e.g. BodyRegionFilter). Clicking a region writes body-part value(s) for cross-filtering. Shift-click multi-select; click background clears. Pair with onRegionSelect actions.'},
     {name:'onRegionSelect',type:'action-trigger',label:'On region select (optional action)'},
     {name:'shadeBy',type:'dropdown',values:['Metric volume','Distinct patients','Data completeness %'],label:'Shade regions by'},
@@ -748,7 +751,7 @@
     if(ns) parts.push(ns+' suppr');
     if(st.unmapped.length) parts.push(st.unmapped.length+' unmapped');
     metaEl.innerHTML=parts.map(function(p,i){ return i===0?'<b>'+p+'</b>':p; }).join(' · ')+
-      (st.synthetic?' <span style="color:#B0567F">· preview (bind source)</span>':'');
+      (st.synthetic?' <span style="color:#B0567F">· preview (bind source) [KEYS='+((st.data&&Object.keys(st.data).length)||0)+' COLS='+((st.cols&&Object.keys(st.cols).length)||0)+' sid='+(st._resolved&&st._resolved.sid||'?')+']</span>':'');
   }
 
   /* ---------- master draw ---------- */
