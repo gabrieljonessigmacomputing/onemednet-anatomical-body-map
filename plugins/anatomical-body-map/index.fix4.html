@@ -908,7 +908,37 @@
              else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(true); }catch(e){}
         try{
           st.unsubCols=client.elements.subscribeToElementColumns(sid,function(cols){
-            st.cols=cols||{}; st.dirty=true; recompute();
+            st.cols=cols||{};
+            console.log('[bodymap] columns', Object.keys(st.cols), st.cols);
+            // Workbook-as-code often stores authoring ids (br0) that never join the
+            // data feed. Rebind to real column ids by display-name aliases.
+            try{
+              function pick(aliases){
+                var keys=Object.keys(st.cols||{});
+                for(var i=0;i<keys.length;i++){
+                  var id=keys[i], meta=st.cols[id]||{}, n=String(meta.name||meta.label||id).toLowerCase();
+                  for(var j=0;j<aliases.length;j++){
+                    if(n===aliases[j]||n.indexOf(aliases[j])>=0) return id;
+                  }
+                }
+                return null;
+              }
+              var r=pick(['body region','region','body part']);
+              var s=pick(['procedures','studies','study','revenue']);
+              var pa=pick(['patients','cases','members']);
+              var patch={};
+              if(r&&r!==(st.cfg&&st.cfg.region)) patch.region=r;
+              if(s&&s!==(st.cfg&&st.cfg.studies)) patch.studies=s;
+              if(pa&&pa!==(st.cfg&&st.cfg.patients)) patch.patients=pa;
+              if(Object.keys(patch).length){
+                console.log('[bodymap] rebinding columns', patch);
+                if(client.config.set) client.config.set(Object.assign({}, st.cfg, patch));
+                else {
+                  Object.keys(patch).forEach(function(k){ try{client.config.setKey(k,patch[k]);}catch(e){} });
+                }
+              }
+            }catch(e){ console.warn('col rebind', e); }
+            st.dirty=true; recompute();
           });
         }catch(e){ console.warn('subscribeToElementColumns',e); }
         st.unsub=client.elements.subscribeToElementData(sid,function(dd){
@@ -949,7 +979,7 @@
     if(!ttl) return;
     var c=getClient();
     var cfg=st.cfg||{};
-    var badge=' · '+(c?'clientOK':'NOCLIENT')+' · src='+(cfg.source? 'yes':'no')+' · keys='+(st.data?Object.keys(st.data).length:0);
+    var badge=' · '+(c?'clientOK':'NOCLIENT')+' · src='+(cfg.source? 'yes':'no')+' · cols='+(st.cols?Object.keys(st.cols).length:0)+' · keys='+(st.data?Object.keys(st.data).length:0);
     if(ttl.textContent.indexOf('client')<0) ttl.textContent=(ttl.textContent||'Body map')+badge;
   },1500);
   if(window.ResizeObserver) new ResizeObserver(schedule).observe(wrap);
