@@ -957,6 +957,13 @@
       if(sid){
         try{ if(client.setLoadingState) client.setLoadingState(true);
              else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(true); }catch(e){}
+        // Safety release: if no data arrives (e.g. headless PDF/PNG export),
+        // never hold Sigma's loading state forever — that hangs the export.
+        clearTimeout(st._loadTimer);
+        st._loadTimer=setTimeout(function(){
+          try{ if(client.setLoadingState) client.setLoadingState(false);
+               else if(client.config&&client.config.setLoadingState) client.config.setLoadingState(false); }catch(e){}
+        },15000);
         try{
           st.unsubCols=client.elements.subscribeToElementColumns(sid,function(cols){
             st.cols=cols||{};
