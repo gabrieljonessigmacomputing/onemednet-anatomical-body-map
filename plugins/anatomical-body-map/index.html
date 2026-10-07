@@ -646,25 +646,27 @@
   /* ---------- selection -> Sigma control variable ---------- */
   function pushSelection(){
     if(!client) return;
-    var varId = st.cfg && st.cfg.regionVar; // bound controlId, e.g. BodyRegionFilter
-    if(!varId) return;
+    // Config VALUE is the controlId (BodyRegionFilter). NEVER pass the literal
+    // config key 'regionVar' — Sigma surfaces "Control variable name: regionVar not found".
+    var varId = st.cfg && st.cfg.regionVar;
+    if(varId && typeof varId === 'object'){
+      varId = varId.controlId || varId.id || varId.name || null;
+    }
+    if(!varId) varId = 'BodyRegionFilter';
     try{
       var vals=[];
       st.selected.forEach(function(k){ var rv=st.regionRawValue[k];
         if(rv==null) return;
         (Array.isArray(rv)?rv:[rv]).forEach(function(v){ if(v!=null&&vals.indexOf(v)<0) vals.push(v); }); });
-      // Verified pattern (scatter-lasso / OneMedNet): pass the CONFIG VALUE (controlId).
-      // Fall back to config key if the host rejects the controlId.
       function push(id){
+        if(!id || id === 'regionVar') return;
         if(!vals.length){ client.config.setVariable(id); return; }
         client.config.setVariable.apply(client.config,[id].concat(vals));
       }
-      try { push(varId); }
-      catch (e1) {
-        try { push('regionVar'); }
-        catch (e2) { console.error('[body-map] setVariable failed', e1, e2); }
-      }
-      if(st.cfg.onRegionSelect){
+      push(String(varId));
+      // Hard alias used by Ascend workbook — keep filters lined up even if cfg lags.
+      if(String(varId) !== 'BodyRegionFilter') push('BodyRegionFilter');
+      if(st.cfg && st.cfg.onRegionSelect){
         try { client.config.triggerAction(st.cfg.onRegionSelect); }
         catch (e3) { try { client.config.triggerAction('onRegionSelect'); } catch (e4) {} }
       }
@@ -1024,10 +1026,23 @@
         try{ if(cfg && cfg.source && cfg.source!==sid) extras.push(cfg.source); }catch(e){}
         try{ if(cfg && cfg.source && cfg.source.elementId && cfg.source.elementId!==sid) extras.push(cfg.source.elementId); }catch(e){}
         try{ if(sid!=='tbl-body') extras.push('tbl-body'); }catch(e){}
+        try{ if(sid!=='tbl-body-viz') extras.push('tbl-body-viz'); }catch(e){}
         var unsubs=extras.map(function(x){
           try{ return client.elements.subscribeToElementData(x, function(dd){ ingestData(dd,'extra'); }); }
           catch(e){ return null; }
         });
+        // Initial pull — subscribe alone can miss a completed payload (KEYS=0 / COLS>0).
+        try{
+          if(client.elements.getElementData){
+            ;[sid].concat(extras).forEach(function(x){
+              if(!x) return;
+              try{
+                var p=client.elements.getElementData(x);
+                if(p && p.then) p.then(function(dd){ ingestData(dd,'get'); }).catch(function(){});
+              }catch(eG){}
+            });
+          }
+        }catch(eG2){}
         var prev=st.unsub; st.unsub=function(){ try{prev&&prev();}catch(e){} unsubs.forEach(function(u){ try{u&&u();}catch(e){} }); };
       } else { st.data=null; st.cols={}; }
       recompute();
