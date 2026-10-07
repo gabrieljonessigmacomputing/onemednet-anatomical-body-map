@@ -646,16 +646,18 @@
   /* ---------- selection -> Sigma control variable ---------- */
   function pushSelection(){
     if(!client) return;
-    var varId = st.cfg && st.cfg.regionVar;
-    if(!varId) return;
+    // SDK setVariable(configId, ...) wants the editor-panel KEY (type:variable),
+    // e.g. 'regionVar' — NOT the bound controlId string in cfg.regionVar
+    // (that caused: "Control variable name: BodyRegionFilter not found").
+    if(!(st.cfg && st.cfg.regionVar)) return;
     try{
       var vals=[];
       st.selected.forEach(function(k){ var rv=st.regionRawValue[k];
         if(rv==null) return;
         (Array.isArray(rv)?rv:[rv]).forEach(function(v){ if(v!=null&&vals.indexOf(v)<0) vals.push(v); }); });
-      if(!vals.length){ client.config.setVariable(varId); return; }
-      client.config.setVariable.apply(client.config,[varId].concat(vals));
-      if(st.cfg.onRegionSelect) client.config.triggerAction(st.cfg.onRegionSelect);
+      if(!vals.length){ client.config.setVariable('regionVar'); return; }
+      client.config.setVariable.apply(client.config,['regionVar'].concat(vals));
+      if(st.cfg.onRegionSelect) client.config.triggerAction('onRegionSelect');
     }catch(e){ console.error('[body-map] setVariable failed', e); }
   }
   function toggleSel(k,add){
