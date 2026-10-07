@@ -646,18 +646,28 @@
   /* ---------- selection -> Sigma control variable ---------- */
   function pushSelection(){
     if(!client) return;
-    // SDK setVariable(configId, ...) wants the editor-panel KEY (type:variable),
-    // e.g. 'regionVar' — NOT the bound controlId string in cfg.regionVar
-    // (that caused: "Control variable name: BodyRegionFilter not found").
-    if(!(st.cfg && st.cfg.regionVar)) return;
+    var varId = st.cfg && st.cfg.regionVar; // bound controlId, e.g. BodyRegionFilter
+    if(!varId) return;
     try{
       var vals=[];
       st.selected.forEach(function(k){ var rv=st.regionRawValue[k];
         if(rv==null) return;
         (Array.isArray(rv)?rv:[rv]).forEach(function(v){ if(v!=null&&vals.indexOf(v)<0) vals.push(v); }); });
-      if(!vals.length){ client.config.setVariable('regionVar'); return; }
-      client.config.setVariable.apply(client.config,['regionVar'].concat(vals));
-      if(st.cfg.onRegionSelect) client.config.triggerAction('onRegionSelect');
+      // Verified pattern (scatter-lasso / OneMedNet): pass the CONFIG VALUE (controlId).
+      // Fall back to config key if the host rejects the controlId.
+      function push(id){
+        if(!vals.length){ client.config.setVariable(id); return; }
+        client.config.setVariable.apply(client.config,[id].concat(vals));
+      }
+      try { push(varId); }
+      catch (e1) {
+        try { push('regionVar'); }
+        catch (e2) { console.error('[body-map] setVariable failed', e1, e2); }
+      }
+      if(st.cfg.onRegionSelect){
+        try { client.config.triggerAction(st.cfg.onRegionSelect); }
+        catch (e3) { try { client.config.triggerAction('onRegionSelect'); } catch (e4) {} }
+      }
     }catch(e){ console.error('[body-map] setVariable failed', e); }
   }
   function toggleSel(k,add){
