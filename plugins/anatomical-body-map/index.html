@@ -68,7 +68,7 @@
 <body>
 <div id="wrap">
   <div id="top">
-    <div id="ttl">Anatomical imaging coverage</div>
+    <div id="ttl">Procedures by anatomical region</div>
     <div id="meta">—</div>
   </div>
   <div id="stage">
@@ -302,7 +302,7 @@
     {k:'cspine',lab:'Cervical spine',v:'P',lp:[212,132],
      syn:['CSPINE','CERVICALSPINE','CTSPINE','CERVICOTHORACICSPINE','CERVICALVERTEBRA','ATLAS','ODONTOID'],
      sh:[['rect',null,{x:135,y:116,width:30,height:34,rx:9}]]},
-    {k:'wholebody',lab:'Whole body (PET-CT)',v:'A',lp:null,halo:true,
+    {k:'wholebody',lab:'Whole body',v:'A',lp:null,halo:true,
      syn:['WHOLEBODY','PETCT','TOTALBODY','SKULLTOTHIGH','BODY','WHOLEBODYPET','EYESTOTHIGHS','VERTEXTOTHIGH'],
      sh:[]}
   ];
@@ -595,7 +595,7 @@
     var r=RKEY[k], a=st.agg[k], s=stateOf(k), thr=cfgInt('suppressUnder',11);
     var h='<b>'+esc(r.lab).toUpperCase()+'</b>';
     if(s==='none'){
-      return h+'<div class="syn">no licensed data</div>This region is absent from the result set — no procedures are available for it in the current filter context.'+
+      return h+'<div class="syn">no procedures</div>This region is absent from the result set — no procedures are available for it in the current filter context.'+
         '<div class="ft">Matches any of: '+esc(r.syn.slice(0,6).join(' · '))+'</div>';
     }
     h+='<div class="syn">'+esc(synList(k)||'—')+'</div>';
@@ -604,10 +604,10 @@
         '<div class="ft">'+N(a.studies)+' procedures present · patient count below threshold</div>';
     }
     if(s==='zero'){
-      return h+'<b style="color:#E6EEF6">0 procedures</b> in the current result set.<br>The region is licensed and present, but nothing matches the active filters.'+
+      return h+'<b style="color:#E6EEF6">0 procedures</b> in the current result set.<br>The region is present, but nothing matches the active filters.'+
         (a.patients?'<div class="ft">'+N(a.patients)+' patients in cohort</div>':'');
     }
-    h+=N(a.studies)+' studies'+(a.patients?' · '+N(a.patients)+' patients':'');
+    h+=N(a.studies)+' procedures'+(a.patients?' · '+N(a.patients)+' patients':'');
     var mm=modMix(k);
     if(mm.length){
       var bar='<div class="mbar">', tx=[];
@@ -722,7 +722,7 @@
     if(st.unmapped.length){
       var tot=0; st.unmapped.forEach(function(u){ tot+=u.studies; });
       var u=document.createElement('div'); u.className='runm';
-      u.textContent='Unmapped ('+st.unmapped.length+') · '+K(tot)+' studies';
+      u.textContent='Unmapped ('+st.unmapped.length+') · '+K(tot)+' procedures';
       var lst=st.unmapped.slice(0,10).map(function(x){ return esc(x.label)+' — '+N(x.studies); }).join('<br>');
       u.addEventListener('mousemove',function(e){ showTip(e,'<b>UNMAPPED BODY-PART VALUES</b><div class="syn">not in the DICOM synonym map</div>'+lst+
         '<div class="ft">Counted in totals, not shaded on the figure. Extend the synonym map or normalise upstream.</div>'); });
@@ -746,7 +746,7 @@
     h+='<span class="ch"><span class="sw sw-zero"></span>'+(tiny?'zero':'zero procedures')+'</span>';
     var thr=cfgInt('suppressUnder',11);
     h+='<span class="ch"><span class="sw sw-sup"></span>'+(thr>0?('suppressed'+(tiny?'':' (&lt;'+thr+' pts)')):'suppression off')+'</span>';
-    h+='<span class="ch"><span class="sw sw-wb"></span>'+(tiny?'PET':'whole-body (PET)')+'</span>';
+    h+='<span class="ch"><span class="sw sw-wb"></span>'+(tiny?'WB':'whole-body')+'</span>';
     legEl.innerHTML=h;
   }
 
